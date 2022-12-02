@@ -2,6 +2,7 @@ import socket
 
 serverName = socket.gethostname()
 serverIpAddress = socket.gethostbyname(serverName)
+print("server IP address = {}".format(serverIpAddress))
 serverPort = 12015
 clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 clientSocket.connect((serverIpAddress, serverPort))

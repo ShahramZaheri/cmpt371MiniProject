@@ -1,133 +1,201 @@
 import socket
+import os
 
-import sys
+# this function takes fileName and
+# returns True if the file exists in the proxyCache folder, otherwise it returns False
+def fileExistsInCache(fileName):
+    path_to_cache_directory = os.getcwd() + "\proxyCache"
+    path_to_file = path_to_cache_directory + fileName
+    fileExists = os.path.exists(path_to_file)
+    return fileExists, path_to_file
 
-if len(sys.argv) <= 1:
+def readFile(filePath):
+    fin = open(filePath)
+    content = fin.read()
+    fin.close()
+    return content
+# --------------------------------- End of Helper Functions ----------------------------------------------------
 
-    print ('Usage: "python S.py port"\n[port : It is the port of the Proxy Server')
+PROXY_HOST = '0.0.0.0'
+PROXY_PORT = 8001
 
-    sys.exit(2)
+SERVER_HOST = socket.gethostbyname(socket.gethostname())
+SERVER_PORT = 8004
 
-# Server socket created, bound and starting to listen
+# Create sockets 
+proxy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+proxy_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+proxy_socket.bind((PROXY_HOST, PROXY_PORT))
 
-Serv_Port = int(sys.argv[1]) # sys.argv[1] is the port number entered by the user
+proxy_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+proxy_server_socket.connect((SERVER_HOST, SERVER_PORT))
 
-Serv_Sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # socket.socket function creates a socket.
 
-# Prepare a server socket
+proxy_socket.listen(1)
+print('Proxy Server is listening on port %s ...' % PROXY_PORT)
+client_connection, client_address = proxy_socket.accept()
 
-print ("starting server ....")
+# Get the client request
+request = client_connection.recv(1024).decode()
+headers = request.split('\n')
+fileName = headers[0].split()[1]
+# fileName = fileName[1:]
 
-Serv_Sock.bind(('', Serv_Port))
+print(fileExistsInCache(fileName)[0])
+print(fileExistsInCache(fileName)[1])
 
-Serv_Sock.listen(5)
+# if the requested file is in the cache, respond to the request from cache, otherwise ask the remote server
+if fileExistsInCache(fileName)[0]:
+    print("------------- file exists in cache, responding from cache ---------------")
+    content = readFile(fileExistsInCache(fileName)[1])
+    response = 'HTTP/1.0 200 OK\n\n' + content
+    response = response.encode()
+else:
+    print("------------- file doesn't exist in cache, asking remote server ---------------")
+    proxy_server_socket.send(request.encode())
+    # receive message from remote server 
+    response = proxy_server_socket.recv(1024)
 
-def caching_object(splitMessage, Cli_Sock):
+  
+# sending response to client (browser)
+client_connection.sendall(response)
+client_connection.close()
 
-    #this method is responsible for caching
 
-    Req_Type = splitMessage[0]
 
-    Req_path = splitMessage[1]
 
-    Req_path = Req_path[1:]
 
-    print ("Request is ", Req_Type, " to URL : ", Req_path)
 
-    #Searching available cache if file exists
 
-    file_to_use = "/" + Req_path
 
-    print (file_to_use)
+# import sys
 
-    try:
+# if len(sys.argv) <= 1:
 
-        file = open(file_to_use[1:], "r")
+#     print ('Usage: "python S.py port"\n[port : It is the port of the Proxy Server')
 
-        data = file.readlines()
+#     sys.exit(2)
 
-        print ("File Present in Cache\n")
+# # Server socket created, bound and starting to listen
 
-        #Proxy Server Will Send A Response Message
+# Serv_Port = int(sys.argv[1]) # sys.argv[1] is the port number entered by the user
 
-        #Cli_Sock.send("HTTP/1.0 200 OK\r\n")
+# Serv_Sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # socket.socket function creates a socket.
 
-        #Cli_Sock.send("Content-Type:text/html")
+# # Prepare a server socket
 
-        #Cli_Sock.send("\r\n")
+# print ("starting server ....")
 
-        #Proxy Server Will Send Data
+# Serv_Sock.bind(('', Serv_Port))
 
-        for i in range(0, len(data)):
+# Serv_Sock.listen(5)
 
-            print (data[i])
+# def caching_object(splitMessage, Cli_Sock):
 
-            Cli_Sock.send(data[i])
+#     #this method is responsible for caching
 
-        print ("Reading file from cache\n")
+#     Req_Type = splitMessage[0]
 
-    except IOError:
+#     Req_path = splitMessage[1]
 
-        print ("File Doesn't Exists In Cache\n fetching file from server \n creating cache")
+#     Req_path = Req_path[1:]
 
-        serv_proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#     print ("Request is ", Req_Type, " to URL : ", Req_path)
 
-        host_name = Req_path
+#     #Searching available cache if file exists
 
-        print ("HOST NAME:", host_name)
+#     file_to_use = "/" + Req_path
 
-        try:
+#     print (file_to_use)
 
-            serv_proxy.connect((host_name, 80))
+#     try:
 
-            print ('Socket connected to port 80 of the host')
+#         file = open(file_to_use[1:], "r")
 
-            fileobj = serv_proxy.makefile('r', 0)
+#         data = file.readlines()
 
-            fileobj.write("GET " + "http://" + Req_path + " HTTP/1.0\n\n")
+#         print ("File Present in Cache\n")
 
-            # Read the response into buffer
+#         #Proxy Server Will Send A Response Message
 
-            buffer = fileobj.readlines()
+#         #Cli_Sock.send("HTTP/1.0 200 OK\r\n")
 
-            # Create a new file in the cache for the requested file.
+#         #Cli_Sock.send("Content-Type:text/html")
 
-            # Also send the response in the buffer to client socket
+#         #Cli_Sock.send("\r\n")
 
-            # and the corresponding file in the cache
+#         #Proxy Server Will Send Data
 
-            tmpFile = open("./" + Req_path, "wb")
+#         for i in range(0, len(data)):
 
-            for i in range(0, len(buffer)):
+#             print (data[i])
 
-                tmpFile.write(buffer[i])
+#             Cli_Sock.send(data[i])
 
-                Cli_Sock.send(buffer[i])
+#         print ("Reading file from cache\n")
 
-        except:
+#     except IOError:
 
-            print (')Illegal Request')
+#         print ("File Doesn't Exists In Cache\n fetching file from server \n creating cache")
 
-    Cli_Sock.close()
+#         serv_proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-while True:
+#         host_name = Req_path
 
-    # Start receiving data from the client
+#         print ("HOST NAME:", host_name)
 
-    print ('Initiating server... \n Accepting connection\n')
+#         try:
 
-    Cli_Sock, addr = Serv_Sock.accept() # Accept a connection from client
+#             serv_proxy.connect((host_name, 80))
 
-    #print addr
+#             print ('Socket connected to port 80 of the host')
 
-    print (' connection received from: ', addr)
+#             fileobj = serv_proxy.makefile('r', 0)
 
-    message = Cli_Sock.recv(1024).decode() #Recieves data from Socket
+#             fileobj.write("GET " + "http://" + Req_path + " HTTP/1.0\n\n")
 
-    splitMessage = message.split()
+#             # Read the response into buffer
 
-    if len(splitMessage) <= 1:
+#             buffer = fileobj.readlines()
 
-        continue
+#             # Create a new file in the cache for the requested file.
 
-    caching_object(splitMessage, Cli_Sock)
+#             # Also send the response in the buffer to client socket
+
+#             # and the corresponding file in the cache
+
+#             tmpFile = open("./" + Req_path, "wb")
+
+#             for i in range(0, len(buffer)):
+
+#                 tmpFile.write(buffer[i])
+
+#                 Cli_Sock.send(buffer[i])
+
+#         except:
+
+#             print (')Illegal Request')
+
+#     Cli_Sock.close()
+
+# while True:
+
+#     # Start receiving data from the client
+
+#     print ('Initiating server... \n Accepting connection\n')
+
+#     Cli_Sock, addr = Serv_Sock.accept() # Accept a connection from client
+
+#     #print addr
+
+#     print (' connection received from: ', addr)
+
+#     message = Cli_Sock.recv(1024).decode() #Recieves data from Socket
+
+#     splitMessage = message.split()
+
+#     if len(splitMessage) <= 1:
+
+#         continue
+
+#     caching_object(splitMessage, Cli_Sock)
