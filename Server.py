@@ -1,4 +1,6 @@
 import socket
+import time
+import os
 
 
 # Define socket host and port
@@ -28,11 +30,19 @@ if len(request) > 0:
     print("file name = {}".format(filename))
 
     try:
-        fin = open(filename)
-        content = fin.read()
-        fin.close()
+        last_access_time = os.path.getatime(filename)
+        last_modified_time = os.path.getmtime(filename)
+        if last_modified_time >= last_access_time:
+            fin = open(filename)
+            content = fin.read()
+            fin.close()
+            response = 'HTTP/1.0 200 OK\n\n' + content
+        else:
+            response = 'HTTP/1.0 304 Not Modified \n\n'
 
-        response = 'HTTP/1.0 200 OK\n\n' + content
+
+
+        
     except FileNotFoundError:
 
         response = 'HTTP/1.0 404 NOT FOUND\n\n File Not Found'
