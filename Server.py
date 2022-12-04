@@ -2,6 +2,19 @@ import socket
 import time
 import os
 
+# ---------------------------------------- Beginning of Helper Functions ----------------------------------------
+def request_is_conditional_GET (request):
+    request_array = request.split('\n')
+    if "modified at:" in request_array[1]:
+        time_starts_at_index = request_array[1].index(":") + 2
+        modified_time = request_array[1] [time_starts_at_index: ]
+        return True, float(modified_time)
+    else:
+        return False, " "
+
+
+#  --------------------------------------- End of Helper Functions ----------------------------------------------
+
 
 # Define socket host and port
 SERVER_HOST = socket.gethostbyname(socket.gethostname())
@@ -20,6 +33,8 @@ client_connection, client_address = server_socket.accept()
 
 # Get the client request
 request = client_connection.recv(1024).decode()
+# print(request)
+# print(type(request))
 if len(request) > 0:
 
     # Parse HTTP headers
@@ -30,19 +45,26 @@ if len(request) > 0:
     print("file name = {}".format(filename))
 
     try:
-        last_access_time = os.path.getatime(filename)
-        last_modified_time = os.path.getmtime(filename)
-        if last_modified_time >= last_access_time:
+        # last_access_time = os.path.getatime(filename)
+        # 
+        is_conditional_get, specified_time_in_request = request_is_conditional_GET(request)
+        if is_conditional_get:
+            time_file_modified_at_server = os.path.getmtime(filename)
+            print("time modified at server:{} ".format(time_file_modified_at_server))
+            print("time specified in request:{} ".format(specified_time_in_request))
+            if time_file_modified_at_server >= specified_time_in_request:
+                fin = open(filename)
+                content = fin.read()
+                fin.close()
+                response = 'HTTP/1.0 200 OK\n\n' + content
+            else:
+                response = 'HTTP/1.0 304 Not Modified \n\n'
+        else:
             fin = open(filename)
             content = fin.read()
             fin.close()
             response = 'HTTP/1.0 200 OK\n\n' + content
-        else:
-            response = 'HTTP/1.0 304 Not Modified \n\n'
 
-
-
-        
     except FileNotFoundError:
 
         response = 'HTTP/1.0 404 NOT FOUND\n\n File Not Found'
