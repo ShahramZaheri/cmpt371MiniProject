@@ -64,69 +64,66 @@ def readFile(filePath):
     fin.close()
     return content
 # --------------------------------- End of Helper Functions ----------------------------------------------------
-
 PROXY_HOST = '0.0.0.0'
 PROXY_PORT = 8001
-
 SERVER_HOST = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 8004
-
 # Create sockets 
 proxy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 proxy_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 proxy_socket.bind((PROXY_HOST, PROXY_PORT))
 
-proxy_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-proxy_server_socket.connect((SERVER_HOST, SERVER_PORT))
+# proxy_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# proxy_server_socket.connect((SERVER_HOST, SERVER_PORT))
 
 
 proxy_socket.listen(1)
 print('Proxy Server is listening on port %s ...' % PROXY_PORT)
-client_connection, client_address = proxy_socket.accept()
 
-# Get the client request
-request = client_connection.recv(1024).decode()
-headers = request.split('\n')
-fileName = headers[0].split()[1]
+while True:
+    client_connection, client_address = proxy_socket.accept()
 
-fileIsInCache, path_to_file_in_cache = fileExistsInCache(fileName)
-# print(" file is in cach = {}, path to file in cache = {}".format(fileIsInCache, path_to_file_in_cache))
-# print ("file expired = {}".format(file_in_cache_expired(path_to_file_in_cache)))
+    request = client_connection.recv(1024).decode()
+    headers = request.split('\n')
+    fileName = headers[0].split()[1]
 
+    fileIsInCache, path_to_file_in_cache = fileExistsInCache(fileName)
+    # print(" file is in cach = {}, path to file in cache = {}".format(fileIsInCache, path_to_file_in_cache))
+    # print ("file expired = {}".format(file_in_cache_expired(path_to_file_in_cache)))
 
-if fileIsInCache and not file_in_cache_expired(path_to_file_in_cache):
-    print("------------- file is in cache and it is not expired, responding to the request from proxy cache ---------------")
-    content = readFile(path_to_file_in_cache)
-    response = 'HTTP/1.0 200 OK\n\n' + content
+    proxy_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    proxy_server_socket.connect((SERVER_HOST, SERVER_PORT))
 
-elif fileIsInCache and file_in_cache_expired(path_to_file_in_cache):
-    print("------------- file is in cache, but it has expired, need to double check with remote server if the file in cache is still good to use ---------------")
-    request = change_http_request_to_conditional_request(request)
-    proxy_server_socket.send(request.encode())
-    response_from_server = proxy_server_socket.recv(1024).decode()
-    response_is_304 = received_304_from_remote_server(response_from_server)
-    if response_is_304:
-        print("-------- received 304 from the remote server, the expired file is good to use ---------------")
+    if fileIsInCache and not file_in_cache_expired(path_to_file_in_cache):
+        print("------------- file is in cache and it is not expired, responding to the request from proxy cache ---------------")
         content = readFile(path_to_file_in_cache)
         response = 'HTTP/1.0 200 OK\n\n' + content
-    else:
-        print("-------- Don't use the expired file, need to get a new copy from server ---------------")
-        response = response_from_server
-        copy_file_to_proxy_cache(fileName)
-elif not fileIsInCache:
-    print("------------- file is NOT in cache, need to ask remote server for a copy of the file ---------------")
-    proxy_server_socket.send(request.encode())
-    response = proxy_server_socket.recv(1024).decode()
-    if not response_from_remote_server_is_404(response):
-        copy_file_to_proxy_cache(fileName)
+        # print(response)
+    elif fileIsInCache and file_in_cache_expired(path_to_file_in_cache):
+        print("------------- file is in cache, but it has expired, need to double check with remote server if the file in cache is still good to use ---------------")
+        request = change_http_request_to_conditional_request(request)
+        proxy_server_socket.send(request.encode())
+        response_from_server = proxy_server_socket.recv(1024).decode()
+        response_is_304 = received_304_from_remote_server(response_from_server)
+        if response_is_304:
+            print("-------- received 304 from the remote server, the expired file is good to use ---------------")
+            content = readFile(path_to_file_in_cache)
+            response = 'HTTP/1.0 200 OK\n\n' + content
+            # print(response)
+        else:
+            print("-------- Don't use the expired file, need to get a new copy from server ---------------")
+            response = response_from_server
+            copy_file_to_proxy_cache(fileName)
+    elif not fileIsInCache:
+        print("------------- file is NOT in cache, need to ask remote server for a copy of the file ---------------")
+        proxy_server_socket.send(request.encode())
+        response = proxy_server_socket.recv(1024).decode()
+        if not response_from_remote_server_is_404(response):
+            copy_file_to_proxy_cache(fileName)
 
-    
-  
-# sending response to client (browser)
-# print(response)
-response = response.encode()
-client_connection.sendall(response)
-client_connection.close()
+    response = response.encode()
+    client_connection.sendall(response)
+    client_connection.close()
 
 
 
