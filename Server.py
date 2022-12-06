@@ -43,7 +43,7 @@ while True:
             filename = headers[0].split()[1]
             filename = filename[1:]
             print("file name = {}".format(filename))
-
+            # time.sleep(3)
             try:
                 is_conditional_get, specified_time_in_request = request_is_conditional_GET(request)
                 if is_conditional_get:
